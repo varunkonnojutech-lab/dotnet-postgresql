@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+# The failure-report step files a temporary issue with the test log tail,
+# because the repo owner reads CI failures from the API (which has no log
+# download for this token). The issue is closed once the failure is fixed.
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # The integration tests run against a real Postgres — JSONB, full-text
+    # search and advisory locks are Postgres behaviour and cannot be faked.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: postgresdemo_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_TEST_CONNECTION_STRING: Host=localhost;Port=5432;Database=postgresdemo_test;Username=postgres;Password=postgres
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      - name: Test
+        run: |
+          set -o pipefail
+          dotnet test --no-build -c Release --verbosity normal 2>&1 | tee test-output.log
+
+      - name: Report test failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tail -n 150 test-output.log > test-failure.txt
+          gh issue create \
+            --title "CI test failure on ${GITHUB_SHA:0:7}" \
+            --body-file test-failure.txt

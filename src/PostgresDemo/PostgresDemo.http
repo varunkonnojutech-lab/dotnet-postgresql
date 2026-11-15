@@ -1,0 +1,53 @@
+@base = http://localhost:8080
+
+### Health
+GET {{base}}/health
+
+### List all products
+GET {{base}}/products
+
+### Full-text search (ranked)
+GET {{base}}/products?search=wireless%20headphones
+
+### Tag filter (array containment)
+GET {{base}}/products?tag=usb-c
+
+### JSONB spec filter
+GET {{base}}/products?specKey=color&specValue=black
+
+### One product
+GET {{base}}/products/1
+
+### One JSONB value
+GET {{base}}/products/3/specs/battery_hours
+
+### Create a product (fires a LISTEN/NOTIFY event)
+POST {{base}}/products
+Content-Type: application/json
+
+{
+  "sku": "KB-101",
+  "name": "Compact Keyboard",
+  "description": "60% mechanical keyboard with hot-swappable switches.",
+  "price": 89.99,
+  "stock": 15,
+  "category": "Accessories",
+  "tags": ["keyboard", "mechanical", "compact"],
+  "specs": { "layout": "60%", "switch": "linear" }
+}
+
+### Create an order (idempotent — replay with the same key to get the original)
+POST {{base}}/orders
+Content-Type: application/json
+Idempotency-Key: order-2026-11-15-001
+
+{
+  "productId": 1,
+  "quantity": 2
+}
+
+### EF Core vs Dapper, same query, timed
+GET {{base}}/compare?search=wireless
+
+### Recent LISTEN/NOTIFY events
+GET {{base}}/notifications
